@@ -1,0 +1,101 @@
+import os
+import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+TOKEN = os.getenv("BOT_TOKEN")
+if not TOKEN:
+    raise RuntimeError("Добавь BOT_TOKEN в переменные окружения Bothost")
+
+bot = telebot.TeleBot(TOKEN)
+
+COUNTRIES = {
+    "rf": "🇷🇺 Россия",
+    "india": "🇮🇳 Индия",
+    "bd": "🇧🇩 Бангладеш",
+    "usa": "🇺🇸 США",
+    "japan": "🇯🇵 Япония",
+    "cd": "🌍 Конго",
+}
+
+def main_menu():
+    kb = InlineKeyboardMarkup(row_width=2)
+    kb.add(
+        InlineKeyboardButton("🔎 Найти номер", callback_data="countries"),
+        InlineKeyboardButton("📊 Статус", callback_data="status"),
+        InlineKeyboardButton("ℹ️ Помощь", callback_data="help"),
+    )
+    return kb
+
+def country_menu():
+    kb = InlineKeyboardMarkup(row_width=2)
+    for key, name in COUNTRIES.items():
+        kb.add(InlineKeyboardButton(name, callback_data=f"country:{key}"))
+    kb.add(InlineKeyboardButton("⬅️ Назад", callback_data="back"))
+    return kb
+
+@bot.message_handler(commands=["start"])
+def start(message):
+    bot.send_message(
+        message.chat.id,
+        "🤖 Бот запущен!\nВыбери действие:",
+        reply_markup=main_menu()
+    )
+
+@bot.message_handler(commands=["help"])
+def help_command(message):
+    bot.reply_to(
+        message,
+        "Команды:\n/start — меню\n/help — помощь\n"
+        "/rf, /india, /bd, /usa, /japan, /cd — выбор страны"
+    )
+
+@bot.message_handler(commands=["rf", "india", "bd", "usa", "japan", "cd"])
+def country_command(message):
+    key = message.text[1:].lower()
+    bot.send_message(
+        message.chat.id,
+        f"Выбрана страна: {COUNTRIES[key]}\n"
+        "Для поиска реальных номеров подключи API провайдера.",
+        reply_markup=country_menu()
+    )
+
+@bot.callback_query_handler(func=lambda call: True)
+def callbacks(call):
+    if call.data == "status":
+        text = "✅ Бот работает."
+        bot.answer_callback_query(call.id)
+        bot.send_message(call.message.chat.id, text)
+
+    elif call.data == "help":
+        bot.answer_callback_query(call.id)
+        bot.send_message(
+            call.message.chat.id,
+            "Выбери «Найти номер» и укажи страну."
+        )
+
+    elif call.data == "countries":
+        bot.answer_callback_query(call.id)
+        bot.send_message(
+            call.message.chat.id,
+            "🌍 Выбери страну:",
+            reply_markup=country_menu()
+        )
+
+    elif call.data == "back":
+        bot.answer_callback_query(call.id)
+        bot.send_message(
+            call.message.chat.id,
+            "Главное меню:",
+            reply_markup=main_menu()
+        )
+
+    elif call.data.startswith("country:"):
+        key = call.data.split(":", 1)[1]
+        bot.answer_callback_query(call.id)
+        bot.send_message(
+            call.message.chat.id,
+            f"Выбрана страна: {COUNTRIES[key]}\n"
+            "Поиск пока не подключён: нужен API провайдера номеров."
+        )
+
+bot.infinity_polling(skip_pending=True)
